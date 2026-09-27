@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.spiramirabilis.autoperf",
+  "name": "Auto Performance",
+  "version": "0.2.0",
+  "author": "Michael Munson",
+  "license": "MIT",
+  "homepage": "https://github.com/SpiraMirabilis/omarchy-autoperf",
+  "description": "Switches to the performance power profile when CPU load spikes, and back down once things go quiet.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Auto Performance",
+    "description": "Load-based performance boost with its thresholds and profiles",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=Boost to the performance power profile under CPU load
+After=graphical-session.target
+
+[Service]
+# Settings: ~/.config/autoperf/config, edited from the bar panel and picked up live
+ExecStart=%h/.local/bin/autoperf
+# On stop, go back to the saved profile for the current power source (undoes a boost)
+ExecStopPost=/usr/bin/omarchy-powerprofiles-set autodetect
+ExecStopPost=/usr/bin/rm -f %t/autoperf/state
+Restart=on-failure
+Nice=10
+
+[Install]
+WantedBy=default.target
