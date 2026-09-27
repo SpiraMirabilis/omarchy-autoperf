@@ -3,7 +3,7 @@
 //!
 //! Settings come from a small `key=value` file (written by the Omarchy panel)
 //! that is re-read whenever it changes, so no restart is needed. The current
-//! state is published to `$XDG_RUNTIME_DIR/autoperf/state` for the bar icon.
+//! state is published to `$XDG_RUNTIME_DIR/omarchy-autoperf/state` for the bar icon.
 //!
 //! Standard library only. CPU usage comes from /proc/stat, AC state from sysfs,
 //! and profile changes go through power-profiles-daemon via `busctl`, which is
@@ -19,7 +19,7 @@ use std::time::{Duration, SystemTime};
 
 const USAGE: &str = "usage: autoperf [--config PATH] [--verbose]
 
-  --config PATH    settings file (default $XDG_CONFIG_HOME/autoperf/config)
+  --config PATH    settings file (default $XDG_CONFIG_HOME/omarchy-autoperf/config)
   --verbose        log every sample
 
 Settings file keys (all optional):
@@ -199,7 +199,7 @@ impl ConfigFile {
     }
 }
 
-/// `$XDG_RUNTIME_DIR/autoperf/state`, rewritten only when the state changes.
+/// `$XDG_RUNTIME_DIR/omarchy-autoperf/state`, rewritten only when the state changes.
 struct StateFile {
     path: Option<PathBuf>,
     last: String,
@@ -208,7 +208,7 @@ struct StateFile {
 impl StateFile {
     fn new() -> Self {
         let path = std::env::var_os("XDG_RUNTIME_DIR")
-            .map(|dir| PathBuf::from(dir).join("autoperf/state"));
+            .map(|dir| PathBuf::from(dir).join("omarchy-autoperf/state"));
         StateFile { path, last: String::new() }
     }
 
@@ -248,7 +248,7 @@ fn default_config_path() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
         .unwrap_or_else(|| die("neither XDG_CONFIG_HOME nor HOME is set"));
-    base.join("autoperf/config")
+    base.join("omarchy-autoperf/config")
 }
 
 fn parse_args() -> Args {

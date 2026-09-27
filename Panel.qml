@@ -6,12 +6,12 @@ import qs.Ui
 import "Model.js" as Model
 
 // Bar icon and settings panel for the autoperf daemon (daemon/). The daemon
-// reads ~/.config/autoperf/config and re-reads it on change, so every control
+// reads ~/.config/omarchy-autoperf/config and re-reads it on change, so every control
 // here just rewrites that file; the on/off switch enables the user unit.
 Panel {
   id: root
   moduleName: "io.github.spiramirabilis.autoperf"
-  ipcTarget: "autoperf"
+  ipcTarget: "omarchy-autoperf"
 
   property var config: Model.parseConfig("")
   property var daemonState: Model.parseState("")
@@ -24,8 +24,8 @@ Panel {
   property bool cursorActive: false
   property int cursorRow: 0
 
-  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/autoperf/config"
-  readonly property string statePath: Quickshell.env("XDG_RUNTIME_DIR") + "/autoperf/state"
+  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omarchy-autoperf/config"
+  readonly property string statePath: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-autoperf/state"
   readonly property string setupPath: Quickshell.env("HOME") + "/.config/omarchy/plugins/" + moduleName + "/setup"
 
   readonly property bool installed: unitEnabled !== "not-found"
@@ -57,7 +57,7 @@ Panel {
     // after the action settles it to the real unit state.
     var enable = !enabled
     unitEnabled = enable ? "enabled" : "disabled"
-    actionProc.command = ["systemctl", "--user", enable ? "enable" : "disable", "--now", "autoperf.service"]
+    actionProc.command = ["systemctl", "--user", enable ? "enable" : "disable", "--now", "omarchy-autoperf.service"]
     actionProc.running = true
   }
 
@@ -167,7 +167,7 @@ Panel {
 
   Process {
     id: unitProc
-    command: ["sh", "-c", "systemctl --user is-enabled autoperf.service; systemctl --user is-active autoperf.service"]
+    command: ["sh", "-c", "systemctl --user is-enabled omarchy-autoperf.service; systemctl --user is-active omarchy-autoperf.service"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {

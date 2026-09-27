@@ -29,8 +29,12 @@ omarchy plugin add https://github.com/SpiraMirabilis/omarchy-autoperf.git --enab
 
 `omarchy plugin add` only clones the files. `setup` builds the small daemon
 (Rust, standard library only; installs `rust` if `cargo` is missing) into
-`~/.local/bin/autoperf` and adds the `autoperf.service` systemd user unit. The panel
-also offers to run it. Run `setup` again after `omarchy plugin update`.
+`~/.local/lib/omarchy-autoperf/` and adds the `omarchy-autoperf.service` systemd
+user unit. The panel also offers to run it. Run `setup` again after
+`omarchy plugin update`.
+
+Both are marked as installed by this plugin, and `setup` will neither overwrite
+nor remove a file or unit at those paths that lacks the mark.
 
 Remove the daemon with `setup --uninstall`, then `omarchy plugin remove io.github.spiramirabilis.autoperf`.
 
@@ -38,7 +42,7 @@ Remove the daemon with `setup --uninstall`, then `omarchy plugin remove io.githu
 
 `daemon/` samples `/proc/stat` once a second (every 5 seconds it only checks
 the power source while paused on battery) and switches profiles through
-power-profiles-daemon over D-Bus. Settings live in `~/.config/autoperf/config`:
+power-profiles-daemon over D-Bus. Settings live in `~/.config/omarchy-autoperf/config`:
 
 ```ini
 boost_from=balanced   # balanced | power-saver | both
@@ -53,8 +57,8 @@ interval=1            # seconds between samples
 
 The panel rewrites this file and the daemon picks up changes within a second;
 `up_samples` and `interval` are file-only. The daemon publishes its state
-(`watching`, `boosted`, `paused`) to `$XDG_RUNTIME_DIR/autoperf/state` for the
-bar icon. Logs: `journalctl --user -u autoperf -f`.
+(`watching`, `boosted`, `paused`) to `$XDG_RUNTIME_DIR/omarchy-autoperf/state` for the
+bar icon. Logs: `journalctl --user -u omarchy-autoperf -f`.
 
 ## Development
 

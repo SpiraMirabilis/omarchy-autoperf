@@ -84,7 +84,7 @@ function stepChoice(list, value, delta) {
   return list[clamp(index + delta, 0, list.length - 1)]
 }
 
-// $XDG_RUNTIME_DIR/autoperf/state: "state=watching|boosted|paused" plus
+// $XDG_RUNTIME_DIR/omarchy-autoperf/state: "state=watching|boosted|paused" plus
 // "restore=<profile>" while boosted. An empty or missing file means the daemon
 // is not running.
 function parseState(raw) {
