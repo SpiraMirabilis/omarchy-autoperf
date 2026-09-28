@@ -18,33 +18,29 @@ The icon is dimmed while off and lights up in the accent color while boosted.
 | Only on AC power | On | Do nothing on battery and leave the profile to Omarchy. |
 
 If you change the profile yourself while boosted, autoperf leaves your choice alone.
-Stopping the daemon restores the saved Omarchy profile for the current power source.
 
 ## Install
 
 ```bash
 omarchy plugin add https://github.com/SpiraMirabilis/omarchy-autoperf.git --enable
-~/.config/omarchy/plugins/io.github.spiramirabilis.autoperf/setup
 ```
 
-`omarchy plugin add` only clones the files. `setup` builds the small daemon
-(Rust, standard library only; installs `rust` if `cargo` is missing) into
-`~/.local/lib/omarchy-autoperf/` and adds the `omarchy-autoperf.service` systemd
-user unit. The panel also offers to run it. Run `setup` again after
-`omarchy plugin update`.
+That is all: the plugin is plain QML and runs inside the Omarchy shell.
 
-Both are marked as installed by this plugin, and `setup` will neither overwrite
-nor remove a file or unit at those paths that lacks the mark.
-
-Remove the daemon with `setup --uninstall`, then `omarchy plugin remove io.github.spiramirabilis.autoperf`.
+Upgrading from 0.2, which ran a small Rust daemon as a systemd user unit: the
+plugin removes that unit and binary on first load (only the files the old
+`setup` marked as its own). Settings carry over.
 
 ## How it works
 
-`daemon/` samples `/proc/stat` once a second (every 5 seconds it only checks
-the power source while paused on battery) and switches profiles through
-power-profiles-daemon over D-Bus. Settings live in `~/.config/omarchy-autoperf/config`:
+`Service.qml` is loaded once by the shell. It reads `/proc/stat` once a second
+and switches profiles through Quickshell's in-process binding to
+power-profiles-daemon, so there is no extra process and nothing to build.
+While paused on battery it does not sample at all. Settings live in
+`~/.config/omarchy-autoperf/config`:
 
 ```ini
+enabled=true
 boost_from=balanced   # balanced | power-saver | both
 up=60                 # spike threshold, %
 up_samples=2          # consecutive samples at/above `up`
@@ -55,14 +51,14 @@ ac_only=true
 interval=1            # seconds between samples
 ```
 
-The panel rewrites this file and the daemon picks up changes within a second;
-`up_samples` and `interval` are file-only. The daemon publishes its state
-(`watching`, `boosted`, `paused`) to `$XDG_RUNTIME_DIR/omarchy-autoperf/state` for the
-bar icon. Logs: `journalctl --user -u omarchy-autoperf -f`.
+The panel rewrites this file and hand edits are picked up live; `up_samples`
+and `interval` are file-only. An active boost is noted in
+`$XDG_RUNTIME_DIR/omarchy-autoperf/boost` so it is still dropped after a shell
+restart. Logs: `journalctl --user -t omarchy-shell -f | grep autoperf`.
 
 ## Development
 
 ```bash
-cargo test --manifest-path daemon/Cargo.toml
+node Model.test.js
 omarchy plugin validate .
 ```

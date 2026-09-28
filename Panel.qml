@@ -1,93 +1,47 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 
-// Bar icon and settings panel for the autoperf daemon (daemon/). The daemon
-// reads ~/.config/omarchy-autoperf/config and re-reads it on change, so every control
-// here just rewrites that file; the on/off switch enables the user unit.
+// Bar icon and settings panel. All the work happens in Service.qml, which the
+// shell loads once; this widget (one per screen) only shows its state and
+// hands edits to it.
 Panel {
   id: root
   moduleName: "io.github.spiramirabilis.autoperf"
   ipcTarget: "omarchy-autoperf"
 
-  property var config: Model.parseConfig("")
-  property var daemonState: Model.parseState("")
-  // systemctl is-enabled / is-active for the unit. Assume installed until the
-  // first check says otherwise, so the panel does not open on the setup prompt.
-  property string unitEnabled: "disabled"
-  property string unitActive: ""
-  property bool writePending: false
+  readonly property var service: root.bar && root.bar.shell ? root.bar.shell.serviceFor(root.moduleName) : null
+  readonly property var config: service ? service.config : Model.parseConfig("")
+  readonly property string status: service ? service.status : ""
+  readonly property bool enabled: config.enabled === true
+  readonly property bool boosted: status === "boosted"
+  readonly property bool running: status === "watching" || status === "boosted"
+  readonly property string statusText: service
+    ? Model.statusText(status, service.restore, service.cpu)
+    : "Service not loaded"
 
   property bool cursorActive: false
   property int cursorRow: 0
 
-  readonly property string configPath: (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/omarchy-autoperf/config"
-  readonly property string statePath: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-autoperf/state"
-  readonly property string setupPath: Quickshell.env("HOME") + "/.config/omarchy/plugins/" + moduleName + "/setup"
-
-  readonly property bool installed: unitEnabled !== "not-found"
-  readonly property bool enabled: unitEnabled === "enabled"
-  readonly property bool boosted: enabled && daemonState.state === "boosted"
-  readonly property bool running: enabled && daemonState.state !== ""
-  readonly property bool failed: enabled && unitActive === "failed"
-  readonly property string statusText: failed
-    ? "Daemon failed to start"
-    : Model.statusText(installed, enabled, daemonState)
-
   // Keyboard rows, top to bottom. Setting rows are named after config keys.
-  readonly property var rows: installed
-    ? ["power", "boost_from", "up", "idle", "idle_secs", "drop_to", "ac_only"]
-    : ["setup"]
+  readonly property var rows: ["power", "boost_from", "up", "idle", "idle_secs", "drop_to", "ac_only"]
   readonly property string cursorKey: cursorActive ? rows[Math.min(cursorRow, rows.length - 1)] : ""
 
   readonly property var boostFromOptions: Model.BOOST_FROM.map(function(v) { return { value: v, label: Model.profileLabel(v) } })
   readonly property var dropToOptions: Model.DROP_TO.map(function(v) { return { value: v, label: Model.profileLabel(v) } })
 
-  function refresh() {
-    if (!unitProc.running && !actionProc.running) unitProc.running = true
-    stateFile.reload()
-  }
-
   function toggleEnabled() {
-    if (!installed || actionProc.running) return
-    // Flip optimistically so the switch throws immediately; the status query
-    // after the action settles it to the real unit state.
-    var enable = !enabled
-    unitEnabled = enable ? "enabled" : "disabled"
-    actionProc.command = ["systemctl", "--user", enable ? "enable" : "disable", "--now", "omarchy-autoperf.service"]
-    actionProc.running = true
-  }
-
-  function runSetup() {
-    Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", setupPath])
-    close()
+    if (service) service.toggleEnabled()
   }
 
   function setConfig(key, value) {
-    var next = Object.assign({}, config)
-    next[key] = value
-    config = next
-    saveTimer.restart()
+    if (service) service.setConfig(key, value)
   }
 
   function setThreshold(key, value) {
-    config = Model.setThreshold(config, key, value)
-    saveTimer.restart()
-  }
-
-  function writeConfig() {
-    if (writeProc.running) {
-      writePending = true
-      return
-    }
-    // Written beside the target and renamed over it, so the daemon never
-    // reads a half-written file.
-    writeProc.command = ["sh", "-c", 'mkdir -p -- "$(dirname -- "$1")" && printf "%s" "$2" > "$1.tmp" && mv -f -- "$1.tmp" "$1"',
-      "autoperf-panel", configPath, Model.serializeConfig(config)]
-    writeProc.running = true
+    if (service) service.setThreshold(key, value)
   }
 
   function hoverRow(key) {
@@ -113,84 +67,16 @@ Panel {
     var key = cursorKey
     if (key === "power") toggleEnabled()
     else if (key === "ac_only") setConfig("ac_only", !config.ac_only)
-    else if (key === "setup") runSetup()
   }
 
   onOpenedChanged: {
     if (!opened) return
-    refresh()
-    configFile.reload()
     cursorActive = false
     cursorRow = 0
   }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
-
-  Component.onCompleted: refresh()
-
-  FileView {
-    id: configFile
-    path: root.configPath
-    printErrors: false
-    // Don't let a load that started before an edit roll the edit back.
-    onLoaded: if (!saveTimer.running && !writeProc.running) root.config = Model.parseConfig(text())
-    onLoadFailed: if (!saveTimer.running && !writeProc.running) root.config = Model.parseConfig("")
-  }
-
-  FileView {
-    id: stateFile
-    path: root.statePath
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    // The daemon rewrites the file in place; skip the empty read a watcher can
-    // catch between truncate and write.
-    onLoaded: if (text().trim() !== "") root.daemonState = Model.parseState(text())
-    onLoadFailed: root.daemonState = Model.parseState("")
-  }
-
-  // The watcher loses the state file when the daemon stops and removes it, so
-  // also poll: often while the panel is open, lazily for the bar icon.
-  Timer {
-    interval: root.opened ? 1000 : 5000
-    running: true
-    repeat: true
-    onTriggered: root.opened ? root.refresh() : stateFile.reload()
-  }
-
-  Timer {
-    id: saveTimer
-    interval: 300
-    onTriggered: root.writeConfig()
-  }
-
-  Process {
-    id: unitProc
-    command: ["sh", "-c", "systemctl --user is-enabled omarchy-autoperf.service; systemctl --user is-active omarchy-autoperf.service"]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var lines = text.split("\n")
-        root.unitEnabled = (lines[0] || "").trim() || "not-found"
-        root.unitActive = (lines[1] || "").trim()
-      }
-    }
-  }
-
-  Process {
-    id: actionProc
-    onExited: root.refresh()
-  }
-
-  Process {
-    id: writeProc
-    onExited: {
-      if (!root.writePending) return
-      root.writePending = false
-      root.writeConfig()
-    }
-  }
 
   BarIconButton {
     id: button
@@ -257,9 +143,8 @@ Panel {
           }
           trailingControl: Component {
             ToggleSwitch {
-              visible: root.installed
               checked: root.enabled
-              busy: actionProc.running
+              interactive: root.service !== null
               hasCursor: root.cursorKey === "power"
               foreground: root.bar.foreground
               onHovered: function(on) { if (on) root.hoverRow("power") }
@@ -268,39 +153,21 @@ Panel {
           }
         }
 
-        // ---------- Not installed: point at the setup script ----------
-        Column {
-          visible: !root.installed
+        // ---------- No performance profile on this machine ----------
+        Text {
+          visible: root.status === "unavailable"
+          textFormat: Text.PlainText
           width: parent.width
-          spacing: Style.space(10)
-
-          Text {
-            textFormat: Text.PlainText
-            width: parent.width
-            text: "The autoperf daemon isn't installed yet. Setup builds it (installing Rust if needed) and adds a systemd user service."
-            color: root.bar.foreground
-            opacity: 0.7
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.bodySmall
-            wrapMode: Text.WordWrap
-          }
-
-          Button {
-            text: "Run setup"
-            iconText: "󰏗"
-            fontSize: Style.font.bodySmall
-            foreground: root.bar.foreground
-            fontFamily: root.bar.fontFamily
-            bordered: true
-            hasCursor: root.cursorKey === "setup"
-            onClicked: root.runSetup()
-            onHovered: function(h) { if (h) root.hoverRow("setup") }
-          }
+          text: "power-profiles-daemon reports no performance profile on this machine, so there is nothing to boost to."
+          color: root.bar.foreground
+          opacity: 0.7
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.WordWrap
         }
 
         // ---------- Settings ----------
         Column {
-          visible: root.installed
           width: parent.width
           spacing: Style.space(14)
 
